@@ -6,3 +6,10 @@ nav{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:28px;font-size:.95rem}h1,
 h2{margin-top:36px;padding-top:18px;border-top:1px solid var(--border);font-size:1.35rem}h3{margin-top:24px;font-size:1.05rem}a{color:var(--link)}
 table{width:100%;border-collapse:collapse;margin:16px 0;font-size:.95rem}th,td{border:1px solid var(--border);padding:10px;vertical-align:top;text-align:left}th{background:var(--card)}
 .notice{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin:18px 0}footer{margin-top:48px;padding-top:20px;border-top:1px solid var(--border);font-size:.92rem}
+
+/* German compounds must remain readable in narrow windows and at larger text sizes. */
+html[lang="de"] main,
+section[lang="de"] {
+  hyphens: auto;
+  overflow-wrap: anywhere;
+}
