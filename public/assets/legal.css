@@ -14,5 +14,5 @@ section[lang="de"] {
   overflow-wrap: anywhere;
 }
 
-/* Keep every language section within the shared licenses page at large text sizes. */
-main.licenses { overflow-wrap: anywhere; }
+/* Keep long words within the available width on every legal page at large text sizes. */
+main { overflow-wrap: anywhere; }
