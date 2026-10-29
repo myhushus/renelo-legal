@@ -13,3 +13,6 @@ section[lang="de"] {
   hyphens: auto;
   overflow-wrap: anywhere;
 }
+
+/* Keep every language section within the shared licenses page at large text sizes. */
+main.licenses { overflow-wrap: anywhere; }
