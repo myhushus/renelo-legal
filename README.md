@@ -1,6 +1,6 @@
-# Decliner Legal Site
+# Decline Legal Site
 
-Static legal pages for Decliner by Meroviq.
+Static legal pages for Decline by Meroviq.
 
 Public domain:
 https://renelo.meroviq.com
