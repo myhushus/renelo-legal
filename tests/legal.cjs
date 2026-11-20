@@ -16,50 +16,73 @@ const server=http.createServer((req,res)=>{
  res.setHeader('Content-Type',file.endsWith('.css')?'text/css; charset=utf-8':'text/html; charset=utf-8');
  fs.createReadStream(file).pipe(res);
 });
+function documentPath(kind, language) {
+ const version = kind === 'terms' ? 'v1.1' : 'v1.0';
+ return `/${kind}/${language}/${version}/`;
+}
 function startServer(){return new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve(`http://127.0.0.1:${server.address().port}`)));}
 function walk(dir){return fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(pathModule.join(dir,e.name)):[pathModule.join(dir,e.name)]);}
 (async()=>{
 const browser=await chromium.launch({headless:true, ...(process.env.CHROME_EXECUTABLE ? {executablePath:process.env.CHROME_EXECUTABLE} : {})});
+const addedLanguages=['bn','mr','te','ta'];
+const languages=['en','ko','es','fr','pt-BR','id','de','ja','hi',...addedLanguages];
 const errors=[],results=[]; const base=await startServer();
 try {
-for(const [locale,lang] of [['hi','hi'],['hi-IN','hi'],['hi-US','hi'],['en-IN','en'],['en-US','en'],['ko-KR','ko'],['es-ES','es'],['fr-FR','fr'],['pt-BR','pt-BR'],['pt-PT','en'],['id-ID','id'],['de-DE','de'],['ja-JP','ja']]) {
+for(const [locale,lang] of [['hi','hi'],['hi-IN','hi'],['hi-US','hi'],['en-IN','en'],['en-US','en'],['ko-KR','ko'],['es-ES','es'],['fr-FR','fr'],['pt-BR','pt-BR'],['pt-PT','en'],['id-ID','id'],['de-DE','de'],['ja-JP','ja'],...addedLanguages.map(lang=>[lang,lang]),['bn-BD','bn'],['bn-IN','bn'],['mr-IN','mr'],['te-IN','te'],['ta-IN','ta'],['ta-LK','ta']]) {
  const c=await browser.newContext({locale}),p=await c.newPage();p.on('pageerror',e=>errors.push(e.message));
- for(const k of ['terms','privacy']){await p.goto(`${base}/${k}/`);await p.waitForURL(`**/${k}/${lang}/v1.0/`);results.push({locale,k,path:new URL(p.url()).pathname});}
+ for(const k of ['terms','privacy']){await p.goto(`${base}/${k}/`);await p.waitForURL(base+documentPath(k,lang));results.push({locale,k,path:new URL(p.url()).pathname});}
  await c.close();
 }
 const c=await browser.newContext({locale:'hi-IN'}),p=await c.newPage();
-for(const [width,height] of [[320,320],[320,480],[800,360],[1280,900]])for(const scale of [1,2,3.2])for(const kind of ['terms','privacy','licenses']) {
- const path=kind==='licenses'?'/licenses/#hi':`/${kind}/hi/v1.0/`;
+for(const lang of ['hi',...addedLanguages])for(const [width,height] of [[320,320],[320,480],[800,360],[1280,900]])for(const scale of [1,2,3.2])for(const kind of ['terms','privacy','licenses']) {
+ const path=kind==='licenses'?`/licenses/#${lang}`:documentPath(kind,lang);
  await p.setViewportSize({width,height});await p.goto(base+path);await p.addStyleTag({content:`html{font-size:${scale*100}%}`});
- if(kind==='licenses')await p.locator('#hi').scrollIntoViewIfNeeded();
+ if(kind==='licenses')await p.locator('#'+lang).scrollIntoViewIfNeeded();
  const dims=await p.evaluate(()=>({vw:innerWidth,sw:document.documentElement.scrollWidth,lang:document.documentElement.lang}));
- if(dims.sw>dims.vw)errors.push({kind,width,height,scale,...dims});
- results.push({kind,width,height,scale,...dims});
- if(out&&width===320&&height===480&&scale===2)await p.screenshot({path:`${out}/${kind}-hi-large.png`});
+ if(dims.sw>dims.vw)errors.push({kind,width,height,scale,...dims,appLocale:lang});
+ results.push({kind,width,height,scale,...dims,appLocale:lang});
+ if(out&&width===320&&height===480&&scale===2)await p.screenshot({path:`${out}/${kind}-${lang}-large.png`});
 }
 await p.emulateMedia({colorScheme:'dark'});await p.goto(base+'/privacy/hi/v1.0/');if(out)await p.screenshot({path:out+'/privacy-hi-dark.png'});
 const nojs=await browser.newContext({javaScriptEnabled:false}),np=await nojs.newPage();
-for(const k of ['privacy','terms']){await np.goto(base+'/'+k+'/');if(await np.locator('li a').count()!==9)errors.push('no-JS language count '+k);await np.locator('a[lang="hi"]').click();if(!np.url().includes('/hi/v1.0/'))errors.push('manual Hindi '+k);}
-for(const lang of ['en','ko','es','fr','pt-BR','id','de','ja','hi'])for(const kind of ['terms','privacy'])for(const scale of [1,2,3.2]) {
- await p.setViewportSize({width:320,height:480});await p.goto(`${base}/${kind}/${lang}/v1.0/`);await p.addStyleTag({content:`html{font-size:${scale*100}%}`});
+for(const k of ['privacy','terms']) for(const lang of ['hi',...addedLanguages]) {
+ await np.goto(base+'/'+k+'/');
+ if(await np.locator('li a').count()!==languages.length)errors.push('no-JS language count '+k);
+ await np.locator('a[lang="'+lang+'"]').click();
+ if(np.url()!==base+documentPath(k,lang))errors.push('manual link '+k+'/'+lang);
+}
+for(const lang of languages)for(const kind of ['terms','privacy'])for(const scale of [1,2,3.2]) {
+ await p.setViewportSize({width:320,height:480});await p.goto(base+documentPath(kind,lang));await p.addStyleTag({content:`html{font-size:${scale*100}%}`});
  const dims=await p.evaluate(()=>({vw:innerWidth,sw:document.documentElement.scrollWidth}));
  if(dims.sw>dims.vw)errors.push({lang,kind,scale,...dims});results.push({lang,kind,scale,...dims});
 }
 
 // Explicit app destinations must not redirect according to browser language.
-const languages=['en','ko','es','fr','pt-BR','id','de','ja','hi'];
 for(const browserLocale of ['en-IN','hi-IN','fr-FR']) {
  const context=await browser.newContext({locale:browserLocale}), page=await context.newPage();
  for(const appLocale of languages) for(const kind of ['terms','privacy','licenses']) {
-  const path=kind==='licenses'?'/licenses/'+(appLocale==='en'?'':'#'+appLocale):`/${kind}/${appLocale}/v1.0/`;
+  const path=kind==='licenses'?'/licenses/'+(appLocale==='en'?'':'#'+appLocale):documentPath(kind,appLocale);
   const response=await page.goto(base+path);
   if(response.status()!==200||page.url()!==base+path)errors.push({browserLocale,appLocale,path,error:'wrong route'});
   if(kind!=='licenses'&&await page.locator('html').getAttribute('lang')!==appLocale)errors.push({path,error:'wrong content language'});
   if(kind==='licenses'&&appLocale!=='en'&&await page.locator(`[id="${appLocale}"]`).count()!==1)errors.push({path,error:'missing language anchor'});
-  if(appLocale==='hi'&&kind!=='licenses'&&await page.locator('h2').count()!==(kind==='terms'?10:11))errors.push({path,error:'missing Hindi sections'});
+  if((kind==='terms'||(kind==='privacy'&&['hi',...addedLanguages].includes(appLocale)))&&await page.locator('h2').count()!==11)errors.push({path,error:'missing document sections'});
   results.push({browserLocale,appLocale,path});
  }
  await context.close();
+}
+// Check the new section, localized archive link and original document in each language.
+for (const lang of languages) {
+ const current=documentPath('terms',lang), previous=`/terms/${lang}/v1.0/`;
+ await p.goto(base+current);
+ const heading=p.locator('h2#governing-law');
+ if(await heading.count()!==1 || !(await p.locator('h2#governing-law + p').innerText()).trim()) errors.push({current,error:'missing governing-law clause'});
+ if(!(await p.locator('.meta').first().innerText()).includes('1.1')) errors.push({current,error:'wrong Terms version'});
+ await p.locator('footer a[href="'+previous+'"]').click();
+ if(p.url()!==base+previous || await p.locator('h2').count()!==10 || await p.locator('#governing-law').count()!==0) errors.push({previous,error:'invalid archived Terms'});
+ await p.locator('a[href="'+current+'"]').click();
+ if(p.url()!==base+current) errors.push({previous,error:'invalid current Terms link'});
+ results.push({current,previous});
 }
 // Every existing local document/stylesheet link and fragment must resolve.
 let internalLinks=0;
